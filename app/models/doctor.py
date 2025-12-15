@@ -22,6 +22,7 @@ class Doctor(Base):
     about = Column(String)
     consultation_fee = Column(Numeric(10, 2), nullable=False)
     is_available = Column(Boolean, default=True)
+    image_url = Column(String, nullable=True)  
     created_at = Column(TIMESTAMP, server_default=func.now())
 
     user = relationship("User", back_populates="doctor")

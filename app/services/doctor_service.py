@@ -1,8 +1,6 @@
-# app/services/doctor_service.py
 from fastapi import HTTPException
 from sqlalchemy import select
 from datetime import date
-
 from app.db.session import async_session
 from app.models.doctor import Doctor
 from app.models.appointment import Appointment
@@ -10,26 +8,24 @@ from app.models.user import User
 from app.models.enums import AppointmentStatus
 from app.utils.permissions import check_role
 
+# --- Get doctor by user_id ---
+async def get_doctor_by_id(user_id: int):
+    async with async_session() as session:
+        result = await session.execute(select(Doctor).where(Doctor.user_id == user_id))
+        return result.scalar_one_or_none()
 
-async def get_doctor_by_id(doctor_id: int):
-    """Return doctor object by id"""
+# --- Get doctor profile ---
+async def get_doctor_profile(doctor_id: int):
     async with async_session() as session:
         result = await session.execute(select(Doctor).where(Doctor.id == doctor_id))
         doctor = result.scalar_one_or_none()
+        if not doctor:
+            raise HTTPException(status_code=404, detail="Doctor not found")
         return doctor
 
-
-async def get_doctor_profile(doctor_id: int):
-    doctor = await get_doctor_by_id(doctor_id)
-    if not doctor:
-        raise HTTPException(status_code=404, detail="Doctor not found")
-    return doctor
-
-
+# --- Update doctor profile ---
 async def update_doctor_profile(doctor_id: int, data):
-    doctor = await get_doctor_by_id(doctor_id)
-    if not doctor:
-        raise HTTPException(status_code=404, detail="Doctor not found")
+    doctor = await get_doctor_profile(doctor_id)
     for field, value in data.dict(exclude_unset=True).items():
         setattr(doctor, field, value)
     async with async_session() as session:
@@ -38,7 +34,35 @@ async def update_doctor_profile(doctor_id: int, data):
         await session.refresh(doctor)
     return doctor
 
+# --- Add doctor (Admin) ---
+async def add_doctor(data: dict):
+    doctor = Doctor(**data)
+    async with async_session() as session:
+        session.add(doctor)
+        await session.commit()
+        await session.refresh(doctor)
+    return doctor
 
+# --- List doctors (Admin) ---
+async def list_doctors():
+    async with async_session() as session:
+        result = await session.execute(select(Doctor))
+        return result.scalars().all()
+
+# --- Change doctor availability ---
+async def change_availability(id: int, is_available: bool):
+    async with async_session() as session:
+        result = await session.execute(select(Doctor).where(Doctor.id == id))
+        doctor = result.scalar_one_or_none()
+        if not doctor:
+            raise HTTPException(status_code=404, detail="Doctor not found")
+        doctor.is_available = is_available
+        session.add(doctor)
+        await session.commit()
+        await session.refresh(doctor)
+        return doctor
+
+# --- List doctor appointments ---
 async def list_doctor_appointments(current_user):
     check_role(current_user.role, ["DOCTOR"])
     if not current_user.doctor:
@@ -49,7 +73,7 @@ async def list_doctor_appointments(current_user):
         )
         return result.scalars().all()
 
-
+# --- Complete appointment ---
 async def complete_appointment(current_user, appointment_id: int):
     check_role(current_user.role, ["DOCTOR"])
     if not current_user.doctor:
@@ -69,7 +93,7 @@ async def complete_appointment(current_user, appointment_id: int):
         await session.refresh(appointment)
         return appointment
 
-
+# --- Doctor dashboard ---
 async def get_doctor_dashboard(current_user):
     check_role(current_user.role, ["DOCTOR"])
     if not current_user.doctor:

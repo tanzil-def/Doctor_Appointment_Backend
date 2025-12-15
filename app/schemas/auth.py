@@ -8,8 +8,8 @@ class UserRegister(BaseModel):
     password: str
     phone: Optional[str]
     dob: Optional[str]
-    gender: Optional[GenderEnum]  # new
-    # image will be handled as UploadFile in router
+    gender: Optional[GenderEnum] 
+
 
 class LoginRequest(BaseModel):
     email: EmailStr

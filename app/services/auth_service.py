@@ -1,49 +1,47 @@
-from app.models.user import User
-from app.db.session import async_session
-from sqlalchemy import select
-from passlib.hash import argon2
+from sqlalchemy.future import select
 from fastapi import HTTPException
-from app.core.security import create_access_token
-from datetime import datetime
+from app.db.session import async_session
+from app.models.user import User
+from app.core.security import get_password_hash, verify_password, create_access_token
+
+
 
 async def register_user(name, email, password, phone=None, dob=None, gender=None, image_url=None):
     async with async_session() as session:
         result = await session.execute(select(User).where(User.email == email))
-        if result.scalars().first():
+        existing_user = result.scalar_one_or_none()
+        if existing_user:
             raise HTTPException(status_code=400, detail="Email already registered")
 
-        dob_date = None
-        if dob:
-            dob_date = datetime.strptime(dob, "%Y-%m-%d").date()
-
+        
         user = User(
             name=name,
             email=email,
-            password=argon2.hash(password),
+            password=get_password_hash(password),
+            role="USER",
             phone=phone,
-            dob=dob_date,
+            dob=dob,
             gender=gender,
-            image_url=image_url,
-            role="USER"
+            image_url=image_url
         )
         session.add(user)
         await session.commit()
         await session.refresh(user)
         return user
 
+
+
 async def login_user(email, password):
     async with async_session() as session:
         result = await session.execute(select(User).where(User.email == email))
-        user = result.scalars().first()
+        user = result.scalar_one_or_none()
         if not user:
-            raise HTTPException(status_code=401, detail="Invalid email or password")
+            raise HTTPException(status_code=401, detail="Invalid credentials")
 
-        try:
-            if not argon2.verify(password, user.password):
-                raise HTTPException(status_code=401, detail="Invalid email or password")
-        except Exception:
-            # Catch malformed hash for old users
-            raise HTTPException(status_code=401, detail="Password verification failed")
+        
+        if not verify_password(password, user.password):
+            raise HTTPException(status_code=401, detail="Invalid credentials")
 
-        token = create_access_token({"user_id": user.id, "role": user.role})
+        
+        token = create_access_token({"sub": str(user.id), "role": user.role})
         return token, user

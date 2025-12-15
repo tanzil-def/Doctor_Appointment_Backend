@@ -6,19 +6,17 @@ from app.core.security import get_password_hash
 
 async def create_admin():
     async with async_session() as session:
-        
         result = await session.execute(select(User).where(User.role == "ADMIN"))
         admin_exists = result.scalar_one_or_none()
         if admin_exists:
             print("Admin already exists")
             return
 
-        
         admin = User(
             name="Admin",
-            email="admin@gmail.com",  
-            password=get_password_hash("admin123"), 
-            role="ADMIN",
+            email="admin@gmail.com",
+            password=get_password_hash("admin123"),
+            role="ADMIN"
         )
         session.add(admin)
         await session.commit()
