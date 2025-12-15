@@ -1,5 +1,6 @@
 from pydantic import BaseModel
-from typing import Optional, List
+from typing import Optional
+
 
 class DoctorResponse(BaseModel):
     id: int
@@ -14,18 +15,24 @@ class DoctorResponse(BaseModel):
     class Config:
         orm_mode = True
 
-class DoctorUpdate(BaseModel):
-    speciality: Optional[str]
-    experience_years: Optional[int]
-    about: Optional[str]
-    consultation_fee: Optional[float]
-    is_available: Optional[bool]
-    image_url: Optional[str]  
 
 class DoctorCreateRequest(BaseModel):
-    user_id: int
+    name: str
+    email: str
+    password: str
+    dob: Optional[str] = None        # YYYY-MM-DD
+    gender: Optional[str] = None     # MALE / FEMALE
     speciality: str
-    experience_years: Optional[int]
-    about: Optional[str]
+    experience_years: Optional[int] = None
+    about: Optional[str] = None
     consultation_fee: float
-    image_url: Optional[str]  
+    image_url: Optional[str] = None
+
+
+class DoctorUpdate(BaseModel):
+    speciality: Optional[str] = None
+    experience_years: Optional[int] = None
+    about: Optional[str] = None
+    consultation_fee: Optional[float] = None
+    is_available: Optional[bool] = None
+    image_url: Optional[str] = None

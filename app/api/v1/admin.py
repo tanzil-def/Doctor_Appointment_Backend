@@ -1,17 +1,22 @@
 from fastapi import APIRouter, Depends, UploadFile, File, Form
-from app.services.admin_service import add_doctor, list_doctors, change_availability, list_appointments, cancel_appointment, get_dashboard
-from app.core.dependencies import get_current_admin
+from app.services.doctor_service import create_doctor_by_admin, list_doctors, change_availability
+from app.services.admin_service import list_appointments, cancel_appointment, get_dashboard
 from app.schemas.doctor import DoctorResponse
-import os  # <<< import os for folder creation
+from app.core.dependencies import get_current_admin
+import os
 
 router = APIRouter(prefix="/admin", tags=["Admin"])
 
 @router.post("/doctors", response_model=DoctorResponse)
 async def add_doctor_route(
-    user_id: int = Form(...),
+    name: str = Form(...),
+    email: str = Form(...),
+    password: str = Form(...),
+    dob: str | None = Form(None),
+    gender: str | None = Form(None),
     speciality: str = Form(...),
-    experience_years: int = Form(0),
-    about: str = Form(None),
+    experience_years: int | None = Form(None),
+    about: str | None = Form(None),
     consultation_fee: float = Form(...),
     image: UploadFile | None = File(None),
     current_admin=Depends(get_current_admin)
@@ -19,24 +24,27 @@ async def add_doctor_route(
     """
     Admin adds a doctor. Use form-data if uploading an image.
     """
-    doctor_data = {
-        "user_id": user_id,
-        "speciality": speciality,
-        "experience_years": experience_years,
-        "about": about,
-        "consultation_fee": consultation_fee,
-        "image_url": None
-    }
-
+    image_url = None
     if image:
-        os.makedirs("uploads/doctors", exist_ok=True)
-        contents = await image.read()
-        filename = f"uploads/doctors/{image.filename}"
-        with open(filename, "wb") as f:
-            f.write(contents)
-        doctor_data["image_url"] = filename
+        os.makedirs("media/doctors", exist_ok=True)
+        path = f"media/doctors/{email}_{image.filename}"
+        with open(path, "wb") as f:
+            f.write(await image.read())
+        image_url = f"/media/doctors/{email}_{image.filename}"
 
-    return await add_doctor(doctor_data)
+    doctor = await create_doctor_by_admin(
+        name=name,
+        email=email,
+        password=password,
+        dob=dob,
+        gender=gender,
+        speciality=speciality,
+        experience_years=experience_years,
+        about=about,
+        consultation_fee=consultation_fee,
+        image_url=image_url
+    )
+    return doctor
 
 @router.get("/doctors", response_model=list[DoctorResponse])
 async def get_all_doctors(current_admin=Depends(get_current_admin)):
