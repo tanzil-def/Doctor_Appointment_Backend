@@ -10,11 +10,11 @@ class Doctor(Base):
     user_id = Column(BigInteger, ForeignKey("users.id", ondelete="CASCADE"), unique=True, nullable=False)
 
     speciality = Column(String(100), nullable=False)
-    experience_years = Column(Integer, nullable=True)
-    about = Column(String, nullable=True)
-    consultation_fee = Column(Numeric(10,2), nullable=False)
+    experience_years = Column(Integer)
+    about = Column(String)
+    consultation_fee = Column(Numeric(10, 2))
     is_available = Column(Boolean, default=True)
-    image_url = Column(String, nullable=True)
+    image_url = Column(String)
     created_at = Column(TIMESTAMP, server_default=func.now())
 
-    user = relationship("User", back_populates="doctor")
+    user = relationship("User", back_populates="doctor", lazy ="joined")

@@ -7,7 +7,7 @@ from app.utils.permissions import check_role
 
 
 async def create_payment(user, appointment_id: int, amount: float, method: str):
-    check_role(user.role, ["USER"])
+    check_role(user, ["USER"])
 
     async with async_session() as session:
         payment = Payment(

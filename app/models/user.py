@@ -29,4 +29,4 @@ class User(Base):
     is_active = Column(Boolean, default=True)
     created_at = Column(TIMESTAMP, server_default=func.now())
 
-    doctor = relationship("Doctor", back_populates="user", uselist=False, cascade="all, delete")
+    doctor = relationship("Doctor", back_populates="user", uselist=False, cascade="all, delete", lazy="selectin")

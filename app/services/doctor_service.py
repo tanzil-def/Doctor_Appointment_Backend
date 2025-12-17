@@ -1,6 +1,6 @@
 from fastapi import HTTPException
 from sqlalchemy import select
-from datetime import datetime, date
+from datetime import datetime
 
 from app.db.session import async_session
 from app.models.user import User, UserRole
@@ -8,8 +8,6 @@ from app.models.doctor import Doctor
 from app.models.appointment import Appointment
 from app.models.enums import AppointmentStatus
 from app.core.security import get_password_hash
-from app.utils.permissions import check_role
-
 
 
 def parse_dob(dob: str | None):
@@ -18,58 +16,13 @@ def parse_dob(dob: str | None):
     try:
         return datetime.strptime(dob, "%Y-%m-%d").date()
     except ValueError:
-        raise HTTPException(
-            status_code=400,
-            detail="DOB must be in YYYY-MM-DD format"
-        )
-
-
-
-async def get_doctor_by_id(user_id: int):
-    async with async_session() as session:
-        result = await session.execute(
-            select(Doctor).where(Doctor.user_id == user_id)
-        )
-        return result.scalar_one_or_none()
-
-
-async def get_doctor_profile(doctor_id: int):
-    async with async_session() as session:
-        result = await session.execute(
-            select(Doctor).where(Doctor.id == doctor_id)
-        )
-        doctor = result.scalar_one_or_none()
-        if not doctor:
-            raise HTTPException(status_code=404, detail="Doctor not found")
-        return doctor
-
-
-async def update_doctor_profile(doctor_id: int, data):
-    async with async_session() as session:
-        result = await session.execute(
-            select(Doctor).where(Doctor.id == doctor_id)
-        )
-        doctor = result.scalar_one_or_none()
-
-        if not doctor:
-            raise HTTPException(status_code=404, detail="Doctor not found")
-
-        for field, value in data.dict(exclude_unset=True).items():
-            setattr(doctor, field, value)
-
-        await session.commit()
-        await session.refresh(doctor)
-        return doctor
-
-
-
+        raise HTTPException(status_code=400, detail="DOB must be YYYY-MM-DD")
 
 
 async def create_doctor_by_admin(
     name: str,
     email: str,
     password: str,
-    phone: str = None,
     dob: str = None,
     gender: str = None,
     speciality: str = None,
@@ -79,28 +32,19 @@ async def create_doctor_by_admin(
     image_url: str = None
 ):
     async with async_session() as session:
-
-        
-        result = await session.execute(
-            select(User).where(User.email == email)
-        )
-        if result.scalar_one_or_none():
+        exists = await session.execute(select(User).where(User.email == email))
+        if exists.scalar_one_or_none():
             raise HTTPException(status_code=400, detail="Email already exists")
-
-        
-        dob_date = parse_dob(dob)
 
         user = User(
             name=name,
             email=email,
             password=get_password_hash(password),
             role=UserRole.DOCTOR,
-            phone=phone,
-            dob=dob_date,                       
+            dob=parse_dob(dob),
             gender=gender.upper() if gender else None,
             is_active=True
         )
-
         session.add(user)
         await session.commit()
         await session.refresh(user)
@@ -114,121 +58,167 @@ async def create_doctor_by_admin(
             image_url=image_url,
             is_available=True
         )
-
         session.add(doctor)
         await session.commit()
         await session.refresh(doctor)
-
         return doctor
 
 
-
-async def list_doctors():
+async def list_doctors(skip: int = 0, limit: int = 100):
     async with async_session() as session:
-        result = await session.execute(select(Doctor))
+        result = await session.execute(
+            select(Doctor).offset(skip).limit(limit)
+        )
         return result.scalars().all()
 
 
-async def change_availability(id: int, is_available: bool):
+async def change_availability(doctor_id: int, is_available: bool):
     async with async_session() as session:
-        result = await session.execute(
-            select(Doctor).where(Doctor.id == id)
-        )
+        result = await session.execute(select(Doctor).where(Doctor.id == doctor_id))
         doctor = result.scalar_one_or_none()
-
         if not doctor:
             raise HTTPException(status_code=404, detail="Doctor not found")
-
         doctor.is_available = is_available
         await session.commit()
         await session.refresh(doctor)
         return doctor
 
 
-async def list_doctor_appointments(current_user):
-    check_role(current_user.role, ["DOCTOR"])
+async def get_doctor_profile(user_id: int):
+    async with async_session() as session:
+        result = await session.execute(select(Doctor).where(Doctor.user_id == user_id))
+        doctor = result.scalar_one_or_none()
+        if not doctor:
+            raise HTTPException(status_code=404, detail="Doctor not found")
 
-    if not current_user.doctor:
-        raise HTTPException(status_code=400, detail="Doctor profile not found")
+        user = await session.get(User, user_id)
 
+        return {
+            "id": doctor.id,
+            "user_id": user.id,
+            "name": user.name,
+            "speciality": doctor.speciality,
+            "experience_years": doctor.experience_years,
+            "about": doctor.about,
+            "consultation_fee": doctor.consultation_fee,
+            "image_url": doctor.image_url,
+            "is_available": doctor.is_available
+        }
+
+
+async def update_doctor_profile(user_id: int, data):
+    async with async_session() as session:
+        result = await session.execute(select(Doctor).where(Doctor.user_id == user_id))
+        doctor = result.scalar_one_or_none()
+        if not doctor:
+            raise HTTPException(status_code=404, detail="Doctor not found")
+
+        for key, value in data.model_dump(exclude_unset=True).items():
+            setattr(doctor, key, value)
+
+        await session.commit()
+        await session.refresh(doctor)
+
+        user = await session.get(User, user_id)
+
+        return {
+            "id": doctor.id,
+            "user_id": user.id,
+            "name": user.name,
+            "speciality": doctor.speciality,
+            "experience_years": doctor.experience_years,
+            "about": doctor.about,
+            "consultation_fee": doctor.consultation_fee,
+            "image_url": doctor.image_url,
+            "is_available": doctor.is_available
+        }
+
+
+async def list_doctor_appointments(doctor_user):
     async with async_session() as session:
         result = await session.execute(
-            select(Appointment).where(
-                Appointment.doctor_id == current_user.doctor.id
-            )
+            select(Appointment).where(Appointment.doctor_id == doctor_user.id)
         )
         return result.scalars().all()
 
 
-async def complete_appointment(current_user, appointment_id: int):
-    check_role(current_user.role, ["DOCTOR"])
-
-    if not current_user.doctor:
-        raise HTTPException(status_code=400, detail="Doctor profile not found")
-
+async def complete_appointment(doctor_user, appointment_id: int):
     async with async_session() as session:
         result = await session.execute(
             select(Appointment).where(
                 Appointment.id == appointment_id,
-                Appointment.doctor_id == current_user.doctor.id
+                Appointment.doctor_id == doctor_user.id
             )
         )
         appointment = result.scalar_one_or_none()
-
         if not appointment:
             raise HTTPException(status_code=404, detail="Appointment not found")
 
-        appointment.status = AppointmentStatus.COMPLETED.value
+        appointment.status = AppointmentStatus.COMPLETED
         await session.commit()
         await session.refresh(appointment)
         return appointment
 
 
-async def get_doctor_dashboard(current_user):
-    check_role(current_user.role, ["DOCTOR"])
-
-    if not current_user.doctor:
-        raise HTTPException(status_code=400, detail="Doctor profile not found")
-
-    today = date.today()
-
+async def get_doctor_dashboard(doctor_user):
     async with async_session() as session:
-        today_result = await session.execute(
+        total = await session.execute(
+            select(Appointment).where(Appointment.doctor_id == doctor_user.id)
+        )
+        today = await session.execute(
             select(Appointment).where(
-                Appointment.doctor_id == current_user.doctor.id,
-                Appointment.appointment_date == today
+                Appointment.doctor_id == doctor_user.id,
+                Appointment.appointment_date == datetime.today().date()
             )
         )
-        today_appointments = today_result.scalars().all()
-
-        all_result = await session.execute(
+        cancelled = await session.execute(
             select(Appointment).where(
-                Appointment.doctor_id == current_user.doctor.id
+                Appointment.doctor_id == doctor_user.id,
+                Appointment.status == AppointmentStatus.CANCELLED
             )
         )
-        all_appointments = all_result.scalars().all()
-
-        completed = sum(1 for a in all_appointments if a.status == AppointmentStatus.COMPLETED.value)
-        cancelled = sum(1 for a in all_appointments if a.status == AppointmentStatus.CANCELLED.value)
-
-        patient_list = []
-        for app in today_appointments:
-            user_result = await session.execute(
-                select(User).where(User.id == app.user_id)
+        paid = await session.execute(
+            select(Appointment).where(
+                Appointment.doctor_id == doctor_user.id,
+                Appointment.payment_status == "PAID"
             )
-            patient = user_result.scalar_one_or_none()
+        )
 
-            patient_list.append({
-                "appointment_id": app.id,
-                "patient_name": patient.name if patient else "Unknown",
-                "appointment_time": str(app.appointment_time),
-                "status": app.status,
-                "payment_status": app.payment_status
-            })
+        return {
+            "total_appointments": len(total.scalars().all()),
+            "today_appointments": len(today.scalars().all()),
+            "cancelled_appointments": len(cancelled.scalars().all()),
+            "paid_appointments": len(paid.scalars().all())
+        }
 
-    return {
-        "today_appointments_count": len(today_appointments),
-        "completed_appointments_count": completed,
-        "cancelled_appointments_count": cancelled,
-        "today_patient_list": patient_list
-    }
+
+async def list_public_doctors():
+    async with async_session() as session:
+        result = await session.execute(
+            select(
+                Doctor.id,
+                Doctor.speciality,
+                Doctor.experience_years,
+                Doctor.about,
+                Doctor.consultation_fee,
+                Doctor.image_url,
+                Doctor.is_available,
+                User.name
+            )
+            .join(User, User.id == Doctor.user_id)
+            .where(User.is_active == True)
+        )
+
+        return [
+            {
+                "id": row.id,
+                "name": row.name,
+                "speciality": row.speciality,
+                "experience_years": row.experience_years,
+                "about": row.about,
+                "consultation_fee": row.consultation_fee,
+                "image_url": row.image_url,
+                "is_available": row.is_available
+            }
+            for row in result.all()
+        ]

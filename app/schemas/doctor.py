@@ -1,10 +1,10 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, EmailStr
 from typing import Optional
-
 
 class DoctorResponse(BaseModel):
     id: int
     user_id: int
+    name: str
     speciality: str
     experience_years: Optional[int]
     about: Optional[str]
@@ -13,15 +13,15 @@ class DoctorResponse(BaseModel):
     image_url: Optional[str]
 
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 
 class DoctorCreateRequest(BaseModel):
     name: str
-    email: str
+    email: EmailStr
     password: str
-    dob: Optional[str] = None        # YYYY-MM-DD
-    gender: Optional[str] = None     # MALE / FEMALE
+    dob: Optional[str] = None
+    gender: Optional[str] = None
     speciality: str
     experience_years: Optional[int] = None
     about: Optional[str] = None
@@ -30,9 +30,13 @@ class DoctorCreateRequest(BaseModel):
 
 
 class DoctorUpdate(BaseModel):
+    name: Optional[str] = None
+    email: Optional[EmailStr] = None
+    password: Optional[str] = None
+    dob: Optional[str] = None
+    gender: Optional[str] = None
     speciality: Optional[str] = None
     experience_years: Optional[int] = None
     about: Optional[str] = None
     consultation_fee: Optional[float] = None
-    is_available: Optional[bool] = None
     image_url: Optional[str] = None

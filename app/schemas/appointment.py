@@ -11,6 +11,7 @@ class AppointmentCreate(BaseModel):
 class AppointmentResponse(BaseModel):
     id: int
     doctor_id: int
+    doctor_name: str
     appointment_date: date
     appointment_time: time
     status: AppointmentStatus

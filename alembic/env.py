@@ -8,11 +8,12 @@ from app.models.doctor import Doctor
 from app.models.appointment import Appointment
 from app.models.appointment_document import AppointmentDocument
 from app.models.payment import Payment
+from app.models.token import RefreshToken  
 
 config = context.config
 fileConfig(config.config_file_name)
 
-target_metadata = Base.metadata
+target_metadata = Base.metadata  
 
 def run_migrations_offline():
     url = config.get_main_option("sqlalchemy.url")

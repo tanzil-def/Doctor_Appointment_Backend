@@ -1,29 +1,24 @@
 from pydantic_settings import BaseSettings
-from pydantic import Field
 
 class Settings(BaseSettings):
-    POSTGRES_USER: str = "doctor_appointment"
-    POSTGRES_PASSWORD: str = "1234"
-    POSTGRES_DB: str = "doctor_appointment_system"
-    POSTGRES_HOST: str = "localhost"
-    POSTGRES_PORT: str = "5432"
+    
+    POSTGRES_USER: str
+    POSTGRES_PASSWORD: str
+    POSTGRES_DB: str
+    POSTGRES_HOST: str
+    POSTGRES_PORT: int
 
-    DATABASE_URL: str | None = Field(default=None, env="DATABASE_URL")
+    
+    DATABASE_URL: str
 
-    JWT_SECRET_KEY: str = Field(default="super-secret-key", env="JWT_SECRET_KEY")
-    JWT_ALGORITHM: str = Field(default="HS256", env="JWT_ALGORITHM")
-    ACCESS_TOKEN_EXPIRE_MINUTES: int = Field(default=60, env="ACCESS_TOKEN_EXPIRE_MINUTES")
+    
+    JWT_SECRET_KEY: str
+    JWT_ALGORITHM: str = "HS256"
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 60
+    REFRESH_TOKEN_EXPIRE_DAYS: int = 7
 
     class Config:
         env_file = ".env"
-        env_file_encoding = "utf-8"
+        extra = "ignore"  
 
 settings = Settings()
-
-# Fallback DATABASE_URL if not provided
-if not settings.DATABASE_URL:
-    settings.DATABASE_URL = (
-        f"postgresql+asyncpg://{settings.POSTGRES_USER}:"
-        f"{settings.POSTGRES_PASSWORD}@{settings.POSTGRES_HOST}:"
-        f"{settings.POSTGRES_PORT}/{settings.POSTGRES_DB}"
-    )

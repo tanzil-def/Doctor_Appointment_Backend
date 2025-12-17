@@ -21,9 +21,6 @@ async def add_doctor_route(
     image: UploadFile | None = File(None),
     current_admin=Depends(get_current_admin)
 ):
-    """
-    Admin adds a doctor. Use form-data if uploading an image.
-    """
     image_url = None
     if image:
         os.makedirs("media/doctors", exist_ok=True)
@@ -44,15 +41,50 @@ async def add_doctor_route(
         consultation_fee=consultation_fee,
         image_url=image_url
     )
-    return doctor
+    return DoctorResponse(
+        id=doctor.id,
+        user_id=doctor.user_id,
+        name=doctor.user.name,
+        speciality=doctor.speciality,
+        experience_years=doctor.experience_years,
+        about=doctor.about,
+        consultation_fee=float(doctor.consultation_fee),
+        is_available=doctor.is_available,
+        image_url=doctor.image_url
+    )
 
 @router.get("/doctors", response_model=list[DoctorResponse])
 async def get_all_doctors(current_admin=Depends(get_current_admin)):
-    return await list_doctors()
+    doctors = await list_doctors()
+    return [
+        DoctorResponse(
+            id=d.id,
+            user_id=d.user_id,
+            name=d.user.name,
+            speciality=d.speciality,
+            experience_years=d.experience_years,
+            about=d.about,
+            consultation_fee=float(d.consultation_fee),
+            is_available=d.is_available,
+            image_url=d.image_url
+        )
+        for d in doctors
+    ]
 
 @router.patch("/doctors/{id}/availability", response_model=DoctorResponse)
 async def change_doctor_availability(id: int, is_available: bool, current_admin=Depends(get_current_admin)):
-    return await change_availability(id, is_available)
+    doctor = await change_availability(id, is_available)
+    return DoctorResponse(
+        id=doctor.id,
+        user_id=doctor.user_id,
+        name=doctor.user.name,
+        speciality=doctor.speciality,
+        experience_years=doctor.experience_years,
+        about=doctor.about,
+        consultation_fee=float(doctor.consultation_fee),
+        is_available=doctor.is_available,
+        image_url=doctor.image_url
+    )
 
 @router.get("/appointments")
 async def get_all_appointments(current_admin=Depends(get_current_admin)):
@@ -63,5 +95,5 @@ async def admin_cancel_appointment(id: int, current_admin=Depends(get_current_ad
     return await cancel_appointment(id)
 
 @router.get("/dashboard")
-async def admin_dashboard(current_admin=Depends(get_current_admin)):
-    return await get_dashboard()
+async def admin_dashboard(skip: int = 0, limit: int = 100, current_admin=Depends(get_current_admin)):
+    return await get_dashboard(skip=skip, limit=limit)
